@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync:*)",
+      "Bash(uv pip list:*)",
+      "Bash(pip index:*)",
+      "Bash(uv run python:*)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(python3.11 -m venv:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(pip install:*)",
+      "Bash(python -c:*)",
+      "Bash(python3.10:*)",
+      "Bash(timeout:*)",
+      "Bash(/dev/null)",
+      "Bash(python test_ballot_encrypt.py:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker inspect:*)",
+      "Bash(docker-compose build:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

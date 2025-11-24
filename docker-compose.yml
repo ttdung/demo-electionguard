@@ -1,0 +1,63 @@
+services:
+  # API Server
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: electionguard-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8088}:8000"
+    volumes:
+      # Mount database directory
+      - "${DATABASE_PATH:-./data}:/app/data"
+      # Mount .env file
+      - ./.env:/app/.env:ro
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/${DATABASE_NAME:-election_demo.db}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEBUG=${DEBUG:-false}
+    env_file:
+      - .env
+    networks:
+      - electionguard-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Frontend Server
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: electionguard-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8089}:80"
+    volumes:
+      # Mount frontend directory (optional override)
+      - "${FRONTEND_PATH:-./frontend}:/usr/share/nginx/html:ro"
+      # Mount nginx config (optional override)
+      - "${NGINX_CONFIG_PATH:-./nginx.conf}:/etc/nginx/conf.d/default.conf:ro"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - electionguard-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "test -f /usr/share/nginx/html/index.html && pgrep nginx > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  electionguard-network:
+    driver: bridge
+
+volumes:
+  database:
+    driver: local

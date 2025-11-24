@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ElectionGuard Demo - Secure Voting</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tab-button.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .secret-masked {
+            filter: blur(4px);
+            user-select: none;
+        }
+        .secret-revealed {
+            filter: none;
+            user-select: text;
+        }
+        .vote-row-expanded {
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow-md">
+        <div class="container mx-auto px-6 py-4">
+            <h1 class="text-3xl font-bold text-blue-600">ElectionGuard Demo</h1>
+            <p class="text-gray-600 mt-1">End-to-End Verifiable Voting System</p>
+        </div>
+    </header>
+
+    <!-- Alert Container -->
+    <div id="alert-container" class="container mx-auto px-6 mt-4"></div>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8">
+        <!-- Navigation Tabs -->
+        <div id="main-nav" class="bg-white rounded-lg shadow-md mb-6 flex border-b">
+            <button class="tab-button px-6 py-4 font-medium text-gray-700 hover:bg-gray-100 transition active" onclick="showMainTab('events', event)">
+                Events List
+            </button>
+            <button class="tab-button px-6 py-4 font-medium text-gray-700 hover:bg-gray-100 transition" onclick="showMainTab('create', event)">
+                Create Event
+            </button>
+        </div>
+
+        <!-- Events List Tab -->
+        <div id="events-tab" class="tab-content active">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">Voting Events</h2>
+                <div id="events-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Events will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Event Tab -->
+        <div id="create-tab" class="tab-content">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">Create New Event</h2>
+                <form id="create-event-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Event Name</label>
+                        <input type="text" id="event-name" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                            <input type="datetime-local" id="from-date" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                            <input type="datetime-local" id="to-date" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Number of Candidates to Vote For</label>
+                        <input type="number" id="allow-vote-num" min="1" value="1" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Candidates (comma-separated)</label>
+                        <textarea id="candidates" required rows="3" placeholder="Alice, Bob, Carol" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-md transition">
+                        Create Event
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Event Detail Page (Hidden by default) -->
+        <div id="event-detail-page" class="hidden">
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <!-- Back Button -->
+                <button onclick="backToEventsList()" class="mb-4 text-blue-600 hover:text-blue-800 font-medium flex items-center">
+                    <span class="mr-2">←</span> Back to Events
+                </button>
+
+                <!-- Event Header -->
+                <div id="event-header" class="mb-6 pb-6 border-b border-gray-200">
+                    <!-- Event info will be loaded here -->
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-4 mb-8">
+                    <button onclick="executeEventTally()" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-md transition">
+                        Tally Now
+                    </button>
+                    <button onclick="endEventVoting()" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-md transition">
+                        End Voting
+                    </button>
+                </div>
+                <!-- Authorize Voter Section -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-bold text-gray-600 uppercase tracking-wider mb-4">Voter Registration</h3>
+
+                    <form id="authorize-voter-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Seal</label>
+                            <input type="text" id="auth-field-1" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Journal</label>
+                            <input type="text" id="auth-field-2" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Journal ABI</label>
+                            <input type="text" id="auth-field-3" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Image ID</label>
+                            <input type="text" id="auth-field-4" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Poll ID</label>
+                            <input type="text" id="auth-field-5" required
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <button type="submit"
+                                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-4 rounded-md transition">
+                            Register
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Add this div for showing the nullifier -->
+                <div class="mb-8">
+                    <div id="authorize-result" class="mt-2 text-gray-700 font-medium"></div>
+                </div>                
+
+                <!-- Customer Registration Section -->
+                <div class="mb-8">
+                    <!-- <h3 class="text-xl font-bold text-gray-800 mb-4">Register Voter</h3>
+                    <form id="register-customer-form" class="flex gap-4 mb-4">
+                        <input type="text" id="customer-unique-id" placeholder="Email or Student ID" required class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition">
+                            Register
+                        </button>
+                    </form> -->
+
+                    <!-- Customer List Table -->
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Secret</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registration Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Voting Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customers-table-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Customer rows will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Vote Submission Section -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Submit Vote</h3>
+                    <form id="submit-vote-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Customer Secret</label>
+                            <input type="text" id="vote-customer-secret" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div id="vote-candidates-container">
+                            <!-- Candidate checkboxes will be loaded here -->
+                        </div>
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-md transition">
+                            Submit Vote
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Voted Table Section -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Votes Cast</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vote Time</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verification Code</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vote Secret</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="votes-table-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Vote rows will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tally Results Section -->
+                <div id="tally-results-section" class="hidden">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">Tally Results</h3>
+                    <div id="tally-results-container" class="overflow-x-auto">
+                        <!-- Results will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Event Log Section -->
+                <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">Event Log</h3>
+                        <div class="flex items-center space-x-4">
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" id="follow-logs-toggle" checked class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+                                <span class="text-sm font-medium text-gray-700">Follow logs</span>
+                            </label>
+                            <label class="flex items-center space-x-2 cursor-pointer">
+                                <input type="checkbox" id="auto-scroll-toggle" checked class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+                                <span class="text-sm font-medium text-gray-700">Auto-scroll</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="event-log-container" class="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-md overflow-y-auto h-96 whitespace-pre-wrap">
+                        <!-- Logs will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // API Base URL
+        const API_BASE = '/app/v1';
+
+        // Current event ID for event detail page
+        let currentEventId = null;
+        let currentEventData = null;
+
+        // Show main navigation tabs
+        function showMainTab(tabName, eventObj = null) {
+            // Update buttons
+            document.querySelectorAll('#main-nav .tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (eventObj && eventObj.target) {
+                eventObj.target.classList.add('active');
+            }
+
+            // Hide all tabs
+            document.getElementById('events-tab').classList.remove('active');
+            document.getElementById('create-tab').classList.remove('active');
+            document.getElementById('event-detail-page').classList.add('hidden');
+            document.getElementById('main-nav').classList.remove('hidden');
+
+            // Show selected tab
+            if (tabName === 'events') {
+                document.getElementById('events-tab').classList.add('active');
+                loadEvents();
+            } else if (tabName === 'create') {
+                document.getElementById('create-tab').classList.add('active');
+            }
+        }
+
+        // Show event detail page
+        function showEventDetail(eventId) {
+            currentEventId = eventId;
+            document.getElementById('events-tab').classList.remove('active');
+            document.getElementById('create-tab').classList.remove('active');
+            document.getElementById('main-nav').classList.add('hidden');
+            document.getElementById('event-detail-page').classList.remove('hidden');
+
+            loadEventDetail(eventId);
+            startLogRefresh(eventId);
+        }
+
+        // Back to events list
+        function backToEventsList() {
+            stopLogRefresh();
+            currentEventId = null;
+            currentEventData = null;
+            showMainTab('events');
+        }
+
+        // Alert functions
+        function showAlert(message, type = 'success') {
+            const container = document.getElementById('alert-container');
+            const alert = document.createElement('div');
+            alert.className = `p-4 mb-4 rounded-md ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+            alert.textContent = message;
+            container.appendChild(alert);
+            setTimeout(() => alert.remove(), 5000);
+        }
+
+        // Copy to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showAlert('Copied to clipboard!');
+            });
+        }
+
+        // Toggle secret visibility
+        function toggleSecret(elementId) {
+            const element = document.getElementById(elementId);
+            if (element.classList.contains('secret-masked')) {
+                element.classList.remove('secret-masked');
+                element.classList.add('secret-revealed');
+            } else {
+                element.classList.add('secret-masked');
+                element.classList.remove('secret-revealed');
+            }
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+
+        // Load events
+        async function loadEvents() {
+            try {
+                const response = await fetch(`${API_BASE}/vote-events`);
+                const data = await response.json();
+
+                const container = document.getElementById('events-list');
+                container.innerHTML = '';
+
+                if (data.events.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 col-span-full text-center py-8">No events found. Create one to get started!</p>';
+                    return;
+                }
+
+                data.events.forEach(event => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition cursor-pointer';
+                    card.onclick = () => showEventDetail(event.id);
+
+                    const statusColors = {
+                        'INVOTING': 'bg-green-100 text-green-800',
+                        'END': 'bg-gray-100 text-gray-800',
+                        'INIT': 'bg-blue-100 text-blue-800'
+                    };
+
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800">${event.name}</h3>
+                            <span class="px-3 py-1 rounded-full text-xs font-medium ${statusColors[event.status] || 'bg-gray-100 text-gray-800'}">${event.status}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">📅 ${formatDate(event.from_date)} - ${formatDate(event.to_date)}</p>
+                        <p class="text-sm text-blue-600 font-medium mt-4">Click to view details →</p>
+                    `;
+
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                showAlert('Failed to load events: ' + error.message, 'error');
+            }
+        }
+
+        // Load event detail
+        async function loadEventDetail(eventId) {
+            try {
+                const response = await fetch(`${API_BASE}/vote-events/${eventId}`);
+                currentEventData = await response.json();
+
+                // Render event header
+                const header = document.getElementById('event-header');
+                header.innerHTML = `
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">${currentEventData.name}</h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Status</p>
+                            <p class="font-semibold">${currentEventData.status}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Start Date</p>
+                            <p class="font-semibold">${formatDate(currentEventData.from_date)}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">End Date</p>
+                            <p class="font-semibold">${formatDate(currentEventData.to_date)}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Total Votes</p>
+                            <p class="font-semibold">${currentEventData.total_votes || 0}</p>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-sm text-gray-500 mb-2">Candidates</p>
+                        <div class="flex flex-wrap gap-2">
+                            ${currentEventData.candidates.map(c => `<span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">${c.name}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+
+                // Load vote candidates for submission form
+                const candidatesContainer = document.getElementById('vote-candidates-container');
+                candidatesContainer.innerHTML = `
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Select Candidates (max ${currentEventData.allow_vote_candidate_num})</label>
+                    <div class="space-y-2">
+                        ${currentEventData.candidates.map(c => `
+                            <label class="flex items-center">
+                                <input type="checkbox" name="candidate" value="${c.id}" class="mr-2" onchange="enforceMaxSelections()">
+                                <span>${c.name}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                    <p id="selection-count" class="text-sm text-gray-500 mt-2">Selected: 0 / ${currentEventData.allow_vote_candidate_num}</p>
+                `;
+
+                // Load customers, votes, and results
+                await loadEventCustomers(eventId);
+                await loadEventVotes(eventId);
+                await loadTallyResults(eventId);
+            } catch (error) {
+                showAlert('Failed to load event details: ' + error.message, 'error');
+            }
+        }
+
+        // Enforce max selections
+        function enforceMaxSelections() {
+            const checkboxes = document.querySelectorAll('input[name="candidate"]');
+            const checked = Array.from(checkboxes).filter(cb => cb.checked);
+            const max = currentEventData.allow_vote_candidate_num;
+
+            document.getElementById('selection-count').textContent = `Selected: ${checked.length} / ${max}`;
+
+            if (checked.length >= max) {
+                checkboxes.forEach(cb => {
+                    if (!cb.checked) cb.disabled = true;
+                });
+            } else {
+                checkboxes.forEach(cb => cb.disabled = false);
+            }
+        }
+
+        // Load event customers
+        async function loadEventCustomers(eventId) {
+            try {
+                const response = await fetch(`${API_BASE}/vote-events/${eventId}/customers`);
+                const data = await response.json();
+
+                const tbody = document.getElementById('customers-table-body');
+                tbody.innerHTML = '';
+
+                if (data.customers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">No registered voters yet</td></tr>';
+                    return;
+                }
+
+                data.customers.forEach((customer, index) => {
+                    const row = document.createElement('tr');
+                    const secretId = `customer-secret-${index}`;
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${customer.unique_id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span id="${secretId}" class="secret-masked">${customer.customer_secret}</span>
+                            <button onclick="toggleSecret('${secretId}')" class="ml-2 text-blue-600 hover:text-blue-800">👁</button>
+                            <button onclick="copyToClipboard('${customer.customer_secret}')" class="ml-2 text-blue-600 hover:text-blue-800">📋</button>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(customer.registered_at)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            ${customer.has_voted ? '<span class="text-green-600">✓ Voted</span>' : '<span class="text-gray-400">- Not Voted</span>'}
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Failed to load customers:', error);
+            }
+        }
+
+        // Load event votes
+        async function loadEventVotes(eventId) {
+            try {
+                const response = await fetch(`${API_BASE}/vote-events/${eventId}/votes`);
+                const data = await response.json();
+
+                const tbody = document.getElementById('votes-table-body');
+                tbody.innerHTML = '';
+
+                if (data.votes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-gray-500">No votes cast yet</td></tr>';
+                    return;
+                }
+
+                data.votes.forEach((vote, index) => {
+                    const row = document.createElement('tr');
+                    row.id = `vote-row-${index}`;
+                    const secretId = `vote-secret-${index}`;
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${formatDate(vote.vote_at)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${vote.verification_code}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span id="${secretId}" class="secret-masked">${vote.vote_secret}</span>
+                            <button onclick="toggleSecret('${secretId}')" class="ml-2 text-blue-600 hover:text-blue-800">👁</button>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                            <button onclick="decodeVoteLevel1(${index}, '${vote.verification_code}')" class="text-blue-600 hover:text-blue-800 font-medium">Detail</button>
+                            <button onclick="decodeVoteLevel2(${index}, '${vote.verification_code}', '${vote.vote_secret}')" class="text-green-600 hover:text-green-800 font-medium">Full Vote Info</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Failed to load votes:', error);
+            }
+        }
+
+        // Decode vote Level 1 (verification code only)
+        async function decodeVoteLevel1(rowIndex, verificationCode) {
+            try {
+                const response = await fetch(`${API_BASE}/votes/decode`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ verification_code: verificationCode })
+                });
+                const data = await response.json();
+
+                const row = document.getElementById(`vote-row-${rowIndex}`);
+                const existingExpanded = document.getElementById(`vote-expanded-${rowIndex}`);
+
+                if (existingExpanded) {
+                    existingExpanded.remove();
+                    row.classList.remove('vote-row-expanded');
+                } else {
+                    const expandedRow = document.createElement('tr');
+                    expandedRow.id = `vote-expanded-${rowIndex}`;
+                    expandedRow.innerHTML = `
+                        <td colspan="4" class="px-6 py-4 bg-gray-50">
+                            <div class="space-y-2">
+                                <p><strong>Event:</strong> ${data.event_name}</p>
+                                <p><strong>Vote Time:</strong> ${formatDate(data.vote_at)}</p>
+                                <p><strong>Selected Candidates:</strong> ${data.selected_candidates.join(', ')}</p>
+                            </div>
+                        </td>
+                    `;
+                    row.after(expandedRow);
+                    row.classList.add('vote-row-expanded');
+                }
+            } catch (error) {
+                showAlert('Failed to decode vote: ' + error.message, 'error');
+            }
+        }
+
+        // Decode vote Level 2 (verification code + vote secret)
+        async function decodeVoteLevel2(rowIndex, verificationCode, voteSecret) {
+            try {
+                const response = await fetch(`${API_BASE}/votes/decode`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        verification_code: verificationCode,
+                        vote_secret: voteSecret
+                    })
+                });
+                const data = await response.json();
+
+                const row = document.getElementById(`vote-row-${rowIndex}`);
+                const existingExpanded = document.getElementById(`vote-expanded-${rowIndex}`);
+
+                if (existingExpanded) {
+                    existingExpanded.remove();
+                    row.classList.remove('vote-row-expanded');
+                } else {
+                    const expandedRow = document.createElement('tr');
+                    expandedRow.id = `vote-expanded-${rowIndex}`;
+                    expandedRow.innerHTML = `
+                        <td colspan="4" class="px-6 py-4 bg-blue-50">
+                            <div class="space-y-2">
+                                <p class="text-lg font-semibold text-blue-800">Full Vote Information</p>
+                                <p><strong>Event:</strong> ${data.event_name}</p>
+                                <p><strong>Vote Time:</strong> ${formatDate(data.vote_at)}</p>
+                                <p><strong>Selected Candidates:</strong> ${data.selected_candidates.join(', ')}</p>
+                                <p class="text-green-700"><strong>Voter:</strong> ${data.customer_unique_id || 'N/A'}</p>
+                            </div>
+                        </td>
+                    `;
+                    row.after(expandedRow);
+                    row.classList.add('vote-row-expanded');
+                }
+            } catch (error) {
+                showAlert('Failed to decode vote: ' + error.message, 'error');
+            }
+        }
+
+        // Load tally results
+        async function loadTallyResults(eventId) {
+            try {
+                const response = await fetch(`${API_BASE}/vote-events/${eventId}`);
+                const data = await response.json();
+
+                if (data.total_votes > 0) {
+                    document.getElementById('tally-results-section').classList.remove('hidden');
+                    const container = document.getElementById('tally-results-container');
+
+                    container.innerHTML = `
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Votes</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                ${data.candidates.map(c => `
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${c.name}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${c.vote_count}</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${c.vote_percentage.toFixed(2)}%</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <p class="mt-4 text-sm text-gray-600">Total Votes: ${data.total_votes}</p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to load tally results:', error);
+            }
+        }
+
+        // Execute tally
+        async function executeEventTally() {
+            if (!confirm('Execute tally ceremony? This will decrypt and count all votes.')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/vote-events/${currentEventId}/tally`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                showAlert('Tally executed successfully!');
+                await loadEventDetail(currentEventId);
+            } catch (error) {
+                showAlert('Failed to execute tally: ' + error.message, 'error');
+            }
+        }
+
+        // End voting
+        async function endEventVoting() {
+            if (!confirm('End voting for this event? No more votes can be submitted.')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/vote-events/${currentEventId}/end-voting`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                showAlert('Voting ended successfully!');
+                await loadEventDetail(currentEventId);
+            } catch (error) {
+                showAlert('Failed to end voting: ' + error.message, 'error');
+            }
+        }
+
+        // Authorize and then Register
+        document.getElementById('authorize-voter-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const authorizePayload = {
+                seal: document.getElementById('auth-field-1').value,
+                journal: document.getElementById('auth-field-2').value,
+                journal_abi: document.getElementById('auth-field-3').value,
+                image_id: document.getElementById('auth-field-4').value,
+                poll_id: document.getElementById('auth-field-5').value,
+                nullifier: '',
+                age: 30,
+                is_student: true,
+                option_a: 0,
+                option_b: 1
+            };
+
+            const resultDiv = document.getElementById('authorize-result');
+            let nullifierValue = null;
+
+            // --- Step 1: Authorize Voter ---
+            try {
+                resultDiv.textContent = 'Authorizing voter...';
+                const authorizeResponse = await fetch(`${API_BASE}/customers/checkvoter`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(authorizePayload),
+                });
+
+                if (authorizeResponse.ok) {
+                    const data = await authorizeResponse.json();
+                    nullifierValue = data.result.nullifier;
+                    resultDiv.textContent = `Voter authorized! Nullifier: ${nullifierValue}. Starting registration...`;
+                } else {
+                    const errorData = await authorizeResponse.json();
+                    resultDiv.textContent = `Failed to authorize: ${errorData.detail || "Unknown error"}`;
+                    await loadEventCustomers(currentEventId);
+                    return; // Stop execution if authorization fails
+                }
+            } catch (error) {
+                resultDiv.textContent = `Error contacting server during authorization: ${error.message}`;
+                await loadEventCustomers(currentEventId);
+                return; // Stop execution if authorization fails
+            }
+
+            // --- Step 2: Register Customer (using nullifier as unique_id) ---
+            if (nullifierValue) {
+                try {
+                    const registerResponse = await fetch(`${API_BASE}/vote-events/${currentEventId}/customers/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ unique_id: nullifierValue }) // Using nullifier
+                    });
+
+                    if (registerResponse.ok) {
+                        const data = await registerResponse.json();
+                        showAlert(`Customer registered! Secret: ${data.customer_secret}`);
+                        resultDiv.textContent = `Voter authorized! Nullifier: ${nullifierValue}. Registration successful`;
+                        await loadEventCustomers(currentEventId);
+                    } else {
+                        const error = await registerResponse.json();
+                        resultDiv.textContent = `Voter authorized! Nullifier: ${nullifierValue}. Registration error: ${error.message}`;
+                    }
+                } catch (error) {
+                    resultDiv.textContent = `Authorization successful, but error contacting server during registration: ${error.message}`;
+                    await loadEventCustomers(currentEventId);
+                }
+            }
+            
+            // Final customer list update
+            await loadEventCustomers(currentEventId);
+        });
+        // // Authorize
+        // document.getElementById('authorize-voter-form').addEventListener('submit', async (e) => {
+        //     e.preventDefault();
+
+        //     const payload = {
+        //         seal: document.getElementById('auth-field-1').value,
+        //         journal: document.getElementById('auth-field-2').value,
+        //         journal_abi: document.getElementById('auth-field-3').value,
+        //         image_id: document.getElementById('auth-field-4').value,
+        //         poll_id: document.getElementById('auth-field-5').value,
+        //         nullifier: '',
+        //         age: 30,
+        //         is_student: true,
+        //         option_a: 0,
+        //         option_b: 1
+        //     };
+
+        //     const resultDiv = document.getElementById('authorize-result');
+
+        //     try {
+        //         const response = await fetch(`${API_BASE}/customers/checkvoter`, {
+        //             method: 'POST',
+        //             headers: { 'Content-Type': 'application/json' },
+        //             body: JSON.stringify(payload),
+        //         });
+
+        //         if (response.ok) {
+        //             const data = await response.json();
+        //             resultDiv.textContent = `Customer registered! Nullifier: ${data.result.nullifier}`;
+        //             await loadEventCustomers(currentEventId);
+        //         } else {
+        //             const errorData = await response.json();
+        //             resultDiv.textContent = `Failed to authorize: ${errorData.detail || "Unknown error"}`;
+        //             await loadEventCustomers(currentEventId);
+        //         }
+        //     } catch (error) {
+        //         resultDiv.textContent = `Error contacting server: ${error.message}`;
+        //         await loadEventCustomers(currentEventId);
+        //     }
+        // });
+
+        // Create event form handler
+        document.getElementById('create-event-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = {
+                name: document.getElementById('event-name').value,
+                from_date: new Date(document.getElementById('from-date').value).toISOString(),
+                to_date: new Date(document.getElementById('to-date').value).toISOString(),
+                allow_vote_candidate_num: parseInt(document.getElementById('allow-vote-num').value),
+                candidate_names: document.getElementById('candidates').value.split(',').map(s => s.trim())
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/vote-events`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    showAlert('Event created successfully!');
+                    document.getElementById('create-event-form').reset();
+                    showMainTab('events');
+                } else {
+                    const error = await response.json();
+                    showAlert('Failed to create event: ' + (error.detail || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Failed to create event: ' + error.message, 'error');
+            }
+        });
+
+        // Register customer form handler
+        // document.getElementById('register-customer-form').addEventListener('submit', async (e) => {
+        //     e.preventDefault();
+
+        //     const uniqueId = document.getElementById('customer-unique-id').value;
+
+        //     try {
+        //         const response = await fetch(`${API_BASE}/vote-events/${currentEventId}/customers/register`, {
+        //             method: 'POST',
+        //             headers: { 'Content-Type': 'application/json' },
+        //             body: JSON.stringify({ unique_id: uniqueId })
+        //         });
+
+        //         if (response.ok) {
+        //             const data = await response.json();
+        //             showAlert(`Customer registered! Secret: ${data.customer_secret}`);
+        //             document.getElementById('customer-unique-id').value = '';
+        //             await loadEventCustomers(currentEventId);
+        //         } else {
+        //             const error = await response.json();
+        //             showAlert('Failed to register: ' + (error.detail || 'Unknown error'), 'error');
+        //         }
+        //     } catch (error) {
+        //         showAlert('Failed to register: ' + error.message, 'error');
+        //     }
+        // });
+
+        // Submit vote form handler
+        document.getElementById('submit-vote-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const customerSecret = document.getElementById('vote-customer-secret').value;
+            const selectedCandidates = Array.from(document.querySelectorAll('input[name="candidate"]:checked')).map(cb => parseInt(cb.value));
+
+            if (selectedCandidates.length === 0) {
+                showAlert('Please select at least one candidate', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/votes/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        event_id: currentEventId,
+                        customer_secret: customerSecret,
+                        selected_candidate_ids: selectedCandidates
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showAlert(`Vote submitted! Verification Code: ${data.verification_code}`);
+                    document.getElementById('vote-customer-secret').value = '';
+                    document.querySelectorAll('input[name="candidate"]').forEach(cb => cb.checked = false);
+                    enforceMaxSelections();
+                    await loadEventVotes(currentEventId);
+                    await loadEventCustomers(currentEventId);
+                } else {
+                    const error = await response.json();
+                    showAlert('Failed to submit vote: ' + (error.detail || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                showAlert('Failed to submit vote: ' + error.message, 'error');
+            }
+        });
+
+        // Event Log Management
+        let logRefreshInterval = null;
+
+        async function loadEventLogs(eventId) {
+            try {
+                const response = await fetch(`${API_BASE}/vote-events/${eventId}/logs?limit=200`);
+                if (response.ok) {
+                    const data = await response.json();
+                    displayEventLogs(data.logs);
+                } else {
+                    console.error('Failed to load event logs');
+                }
+            } catch (error) {
+                console.error('Error loading event logs:', error);
+            }
+        }
+
+        function displayEventLogs(logs) {
+            const container = document.getElementById('event-log-container');
+            const autoScroll = document.getElementById('auto-scroll-toggle').checked;
+            const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+
+            if (logs.length === 0) {
+                container.innerHTML = '<span class="text-gray-500">No logs available yet...</span>';
+                return;
+            }
+
+            // Format logs with color coding
+            const logHtml = logs.map(log => {
+                const timestamp = new Date(log.timestamp).toLocaleTimeString();
+                const levelColor = {
+                    'INFO': 'text-green-400',
+                    'WARNING': 'text-yellow-400',
+                    'ERROR': 'text-red-400',
+                    'DEBUG': 'text-blue-400'
+                }[log.level] || 'text-green-400';
+
+                return `<div class="mb-1">
+                    <span class="text-gray-500">[${timestamp}]</span>
+                    <span class="${levelColor}">[${log.level}]</span>
+                    <span>${escapeHtml(log.message)}</span>
+                </div>`;
+            }).join('');
+
+            container.innerHTML = logHtml;
+
+            // Auto-scroll to bottom if enabled and was already at bottom
+            if (autoScroll && (wasAtBottom || logs.length === 1)) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function startLogRefresh(eventId) {
+            // Clear any existing interval
+            stopLogRefresh();
+
+            // Load logs immediately
+            loadEventLogs(eventId);
+
+            // Set up auto-refresh every 2 seconds if "Follow logs" is enabled
+            if (document.getElementById('follow-logs-toggle').checked) {
+                logRefreshInterval = setInterval(() => {
+                    // Only fetch if "Follow logs" is still enabled
+                    if (document.getElementById('follow-logs-toggle').checked) {
+                        loadEventLogs(eventId);
+                    } else {
+                        stopLogRefresh();
+                    }
+                }, 2000);
+            }
+        }
+
+        function stopLogRefresh() {
+            if (logRefreshInterval) {
+                clearInterval(logRefreshInterval);
+                logRefreshInterval = null;
+            }
+        }
+
+        // Handle "Follow logs" checkbox changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const followLogsToggle = document.getElementById('follow-logs-toggle');
+            if (followLogsToggle) {
+                followLogsToggle.addEventListener('change', function() {
+                    if (currentEventId) {
+                        if (this.checked) {
+                            // Start refreshing if currently viewing an event
+                            startLogRefresh(currentEventId);
+                        } else {
+                            // Stop refreshing
+                            stopLogRefresh();
+                        }
+                    }
+                });
+            }
+        });
+
+        // Initial load
+        loadEvents();
+    </script>
+</body>
+</html>

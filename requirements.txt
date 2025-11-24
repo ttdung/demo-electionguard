@@ -1,0 +1,32 @@
+# Core Dependencies
+electionguard==1.4.0
+fastapi==0.88.0
+uvicorn[standard]==0.38.0
+SQLAlchemy==1.4.54
+aiosqlite==0.21.0
+pydantic==1.9.0
+python-dotenv==1.2.1
+python-multipart==0.0.20
+dacite==1.9.2
+
+py-ecc==7.0.0
+
+# ElectionGuard Dependencies
+gmpy2==2.2.1
+
+# FastAPI/Uvicorn Dependencies
+starlette==0.22.0
+anyio==4.11.0
+h11==0.16.0
+httptools==0.7.1
+watchfiles==1.1.1
+websockets==15.0.1
+uvloop==0.22.1
+click==8.1.8
+typing_extensions==4.15.0
+
+# Database
+greenlet==3.2.4
+
+# Utilities
+PyYAML==6.0.3
