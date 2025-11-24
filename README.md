@@ -73,6 +73,10 @@ journal_abi:
 image_id:
 43706d1c05d8ab2375026a165aca9e5d2cf2123ff77a40438580c47e6f968861
 
+# To create proof [seal, journal, journal_abi, image_id]
+cd demo-electionguard/risc0
+follow the README.md
+
 ### Option 2: Local Development
 
 ```bash
